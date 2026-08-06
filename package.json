@@ -1,0 +1,44 @@
+{
+  "name": "@mambalabsdev/mcp-outbound-infrastructure-fingerprint",
+  "version": "1.0.0",
+  "description": "MCP server for the Mamba Labs Outbound Infrastructure Fingerprint actor on Apify. Give it a company domain and it returns whether that company runs cold email outbound and on what stack, including the lookalike sending domains behind the program, as flat Clay-ready JSON.",
+  "type": "module",
+  "bin": {
+    "mcp-outbound-infrastructure-fingerprint": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "cold-email",
+    "outbound",
+    "sending-domains",
+    "deliverability",
+    "sales-engagement",
+    "email-infrastructure",
+    "apify",
+    "clay"
+  ],
+  "author": "Mamba Labs <labs@mambamindsetgrowth.com>",
+  "license": "MIT",
+  "homepage": "https://apify.com/mambalabs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mambalabsdev/mcp-outbound-infrastructure-fingerprint"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0"
+  },
+  "mcpName": "com.mambabuilt/mcp-outbound-infrastructure-fingerprint"
+}

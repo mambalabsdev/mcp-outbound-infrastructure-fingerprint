@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mamba-outbound-infrastructure-fingerprint": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mambalabsdev/mcp-outbound-infrastructure-fingerprint"
+      ],
+      "env": {
+        "APIFY_TOKEN": "your-apify-token"
+      }
+    }
+  }
+}
