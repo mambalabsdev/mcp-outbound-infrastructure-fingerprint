@@ -135,9 +135,24 @@ server.registerTool(
         .boolean()
         .optional()
         .describe("Force a fresh analysis and ignore the 7 day result cache."),
+      max_sending_domain_probes: z
+        .number()
+        .int()
+        .optional()
+        .describe("Cap on how many candidate sending domains are probed per company. Lower it to bound run time and cost on companies with many lookalike domains."),
+      request_timeout_ms: z
+        .number()
+        .int()
+        .optional()
+        .describe("Per-HTTP-request timeout in milliseconds."),
+      dns_timeout_ms: z
+        .number()
+        .int()
+        .optional()
+        .describe("Per-DNS-lookup timeout in milliseconds."),
     },
   },
-  async ({ domain, domains, scan_sending_domains, sending_domain_depth, check_deliverability, skipCache }) => {
+  async ({ domain, domains, scan_sending_domains, sending_domain_depth, check_deliverability, skipCache, max_sending_domain_probes, request_timeout_ms, dns_timeout_ms }) => {
     const hasSingle = domain !== undefined && domain !== "";
     const hasBatch = Array.isArray(domains) && domains.length > 0;
     if (!hasSingle && !hasBatch) {
@@ -156,6 +171,9 @@ server.registerTool(
         sending_domain_depth,
         check_deliverability,
         skipCache,
+        max_sending_domain_probes,
+        request_timeout_ms,
+        dns_timeout_ms,
       }),
     );
   },

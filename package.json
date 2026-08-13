@@ -1,6 +1,6 @@
 {
   "name": "@mambalabsdev/mcp-outbound-infrastructure-fingerprint",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for the Mamba Labs Outbound Infrastructure Fingerprint actor on Apify. Give it a company domain and it returns whether that company runs cold email outbound and on what stack, including the lookalike sending domains behind the program, as flat Clay-ready JSON.",
   "type": "module",
   "bin": {
