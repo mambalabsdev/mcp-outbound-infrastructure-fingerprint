@@ -20,6 +20,9 @@ Give it a company domain. It tells your agent whether that company runs cold ema
 | `sending_domain_depth` | `deep` \| `standard` | Default `deep` (.com .co .io .net .org). |
 | `check_deliverability` | boolean | Default false. Adds a separately billed blacklist check and health score. |
 | `skipCache` | boolean | Ignore the 7 day result cache. |
+| `max_sending_domain_probes` | integer | 10 to 300, default 80. Cap on candidate sending domains probed per company. |
+| `request_timeout_ms` | integer | 3000 to 20000, default 9000. Per HTTP request timeout. |
+| `dns_timeout_ms` | integer | 1000 to 15000, default 4000. Per DNS lookup timeout. |
 
 Returns a flat row per domain: `runs_outbound` (`program`, `light`, `none`, `unknown`), `confidence`, `sending_domains[]`, `registration_clusters[]`, `sending_platforms[]`, `inbox_provider`, `warmup_detected`, `infrastructure_vendors[]`, `spf_status`, `dkim_status`, `dmarc_policy`, and an `evidence[]` array of quotable strings.
 
