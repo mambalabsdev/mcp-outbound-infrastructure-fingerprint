@@ -1,0 +1,119 @@
+{
+  "title": "Outbound Infrastructure Fingerprint",
+  "description": "Give it a domain. It returns whether the company runs cold outbound and on what stack. Free Apify-plan users get 800 results per calendar month (resets monthly); upgrade for unlimited: https://apify.com/pricing?fpr=mamba",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "domain": {
+      "title": "Company domain",
+      "type": "string",
+      "description": "A single company domain, for example smartlead.ai. Ignored when Company domains is filled.",
+      "editor": "textfield",
+      "prefill": "smartlead.ai",
+      "example": "smartlead.ai"
+    },
+    "domains": {
+      "title": "Company domains (batch)",
+      "type": "array",
+      "description": "Analyze many domains in one run. Takes precedence over the single domain field.",
+      "editor": "stringList",
+      "default": [],
+      "prefill": []
+    },
+    "scan_sending_domains": {
+      "title": "Scan for lookalike sending domains",
+      "type": "boolean",
+      "description": "The strongest signal and the slowest one. Generates lookalike domains from the brand, checks which carry mail, and keeps the ones whose web root redirects back to the primary domain. Turning this off makes runs much faster but caps the verdict at what platform and deliverability signals alone can prove.",
+      "editor": "checkbox",
+      "default": true,
+      "prefill": true
+    },
+    "sending_domain_depth": {
+      "title": "Sending domain scan depth",
+      "type": "string",
+      "description": "deep checks .com, .co, .io, .net and .org and is the default: it costs about 65 percent more DNS lookups but no measurable wall-clock time, because the lookups run in parallel and only the mail-carrying candidates get an HTTP probe. standard drops .net and .org, which carried only 3 of the 41 lookalike domains found in testing but were the ONLY hit for one of them.",
+      "editor": "select",
+      "enum": [
+        "deep",
+        "standard"
+      ],
+      "enumTitles": [
+        "Deep (.com .co .io .net .org)",
+        "Standard (.com .co .io)"
+      ],
+      "default": "deep",
+      "prefill": "deep"
+    },
+    "check_deliverability": {
+      "title": "Check deliverability posture",
+      "type": "boolean",
+      "description": "Adds a blacklist check and a 0 to 100 health score by running Mamba Labs Domain Deliverability Checker, which bills your account separately at its own per-domain rate on top of this one. Off by default: as of 2026-08-06 that actor returns an empty audit when called as a sub-actor, so it costs money and adds nothing. SPF, DKIM and DMARC are read directly from DNS either way, at no extra cost.",
+      "editor": "checkbox",
+      "default": false,
+      "prefill": false
+    },
+    "batchSize": {
+      "title": "Concurrent domains",
+      "type": "integer",
+      "description": "How many domains to analyze at once. 1 to 10. Each domain runs a few hundred DNS lookups, so raising this raises memory pressure more than it raises throughput.",
+      "editor": "number",
+      "default": 3,
+      "prefill": 3,
+      "minimum": 1,
+      "maximum": 10
+    },
+    "max_sending_domain_probes": {
+      "title": "Max sending domain probes",
+      "type": "integer",
+      "description": "Cap on how many mail-carrying lookalikes get an HTTP attribution probe per domain. Anything skipped is reported in the evidence array rather than dropped silently.",
+      "editor": "number",
+      "default": 80,
+      "prefill": 80,
+      "minimum": 10,
+      "maximum": 300
+    },
+    "request_timeout_ms": {
+      "title": "HTTP request timeout (ms)",
+      "type": "integer",
+      "description": "Per-request timeout for the attribution probes. 3000 to 20000.",
+      "editor": "number",
+      "default": 9000,
+      "prefill": 9000,
+      "minimum": 3000,
+      "maximum": 20000
+    },
+    "dns_timeout_ms": {
+      "title": "DNS lookup timeout (ms)",
+      "type": "integer",
+      "description": "Per-lookup DNS timeout. 1000 to 15000.",
+      "editor": "number",
+      "default": 4000,
+      "prefill": 4000,
+      "minimum": 1000,
+      "maximum": 15000
+    },
+    "skipCache": {
+      "title": "Skip the cache",
+      "type": "boolean",
+      "description": "Ignore the 7 day result cache and re-analyze every domain from scratch.",
+      "editor": "checkbox",
+      "default": false,
+      "prefill": false
+    },
+    "qa_test_mode": {
+      "title": "QA test mode",
+      "type": "boolean",
+      "description": "Emit a single summary row and skip all network work. Used for automated checks.",
+      "editor": "checkbox",
+      "default": false,
+      "prefill": false
+    },
+    "source_tag": {
+      "title": "Source Tag",
+      "type": "string",
+      "description": "Internal attribution tag set by Mamba Labs on published task examples. Not required, and nothing depends on it. Leave it empty.",
+      "editor": "hidden"
+    }
+  },
+  "required": []
+}

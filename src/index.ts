@@ -30,6 +30,21 @@ function compact(obj: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+// START AND POLL, NOT RUN-SYNC. Apify's synchronous endpoint carries a platform
+// ceiling of 300 seconds on the HTTP wait and answers 408 past it while the run
+// keeps going and keeps billing. Starting the run, polling it to a terminal
+// status, and then reading the dataset waits as long as the actor needs.
+//
+// How long the actor run itself may take, in seconds: long enough for a large
+// batch, short enough that a hung run cannot bill indefinitely.
+const ACTOR_RUN_TIMEOUT_SECS = 1800;
+// How long this wrapper waits: the run's own timeout plus two minutes, so the
+// run's TIMED-OUT status is what the caller sees.
+const WRAPPER_WAIT_MS = (ACTOR_RUN_TIMEOUT_SECS + 120) * 1000;
+const POLL_INTERVAL_MS = Number(process.env.MAMBA_POLL_INTERVAL_MS ?? 3000);
+const TERMINAL = new Set(["SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED", "ABORTING"]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // Shared caller. actorPath is the actor's immutable Apify actor ID (a stable key
 // that survives Store renames). The /v2/acts/{id} endpoint accepts it directly,
 // so a Store rename never breaks these calls.
@@ -42,25 +57,13 @@ async function runActor(
     return { isError: true, content: [{ type: "text", text: "APIFY_TOKEN is not set. Create a token at https://console.apify.com/account/integrations and set it as the APIFY_TOKEN environment variable." }] };
   }
 
-  const url = `https://api.apify.com/v2/acts/${actorPath}/run-sync-get-dataset-items?timeout=300`;
+  const headers = {
+    Authorization: `Bearer ${APIFY_TOKEN}`,
+    "Content-Type": "application/json",
+    "User-Agent": USER_AGENT,
+  };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${APIFY_TOKEN}`,
-        "Content-Type": "application/json",
-        "User-Agent": USER_AGENT,
-      },
-      body: JSON.stringify(input),
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { isError: true, content: [{ type: "text", text: `Could not reach the Apify API: ${message}` }] };
-  }
-
-  if (!response.ok) {
+  const httpError = async (response: Response): Promise<string> => {
     let detail = "";
     try {
       const body = (await response.json()) as { error?: { message?: string } };
@@ -68,26 +71,111 @@ async function runActor(
     } catch {
       detail = "";
     }
-
-    let message: string;
     switch (response.status) {
+      case 400:
+        return `The ${actorLabel} run was rejected as invalid input.${detail}`;
       case 401:
-        message = "Invalid Apify token. Check your APIFY_TOKEN environment variable.";
-        break;
+        return "Invalid Apify token. Check your APIFY_TOKEN environment variable.";
       case 402:
-        message =
-          "Insufficient Apify credits. Check your account balance at https://console.apify.com/billing";
-        break;
-      case 408:
-        message = `The ${actorLabel} run timed out after 300 seconds. Try a smaller batch, or run the actor on Apify directly for longer jobs.`;
-        break;
+        return "Insufficient Apify credits. Check your account balance at https://console.apify.com/billing";
       default:
-        message = `Apify request to ${actorLabel} failed with status ${response.status}.${detail}`;
+        return `Apify request to ${actorLabel} failed with status ${response.status}.${detail}`;
     }
-    return { isError: true, content: [{ type: "text", text: message }] };
+  };
+
+  // 1. Start the run.
+  let started: Response;
+  try {
+    started = await fetch(
+      `https://api.apify.com/v2/acts/${actorPath}/runs?timeout=${ACTOR_RUN_TIMEOUT_SECS}`,
+      { method: "POST", headers, body: JSON.stringify(input) },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { isError: true, content: [{ type: "text", text: `Could not reach the Apify API: ${message}` }] };
+  }
+  if (!started.ok) {
+    return { isError: true, content: [{ type: "text", text: await httpError(started) }] };
   }
 
-  const items = await response.json();
+  let run: { id?: string; status?: string; defaultDatasetId?: string };
+  try {
+    run = ((await started.json()) as { data?: typeof run }).data ?? {};
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { isError: true, content: [{ type: "text", text: `The ${actorLabel} run start returned a response that could not be parsed: ${message}` }] };
+  }
+  const runId = run.id;
+  if (!runId) {
+    return { isError: true, content: [{ type: "text", text: `The ${actorLabel} run start returned no run id, so there is nothing to wait for.` }] };
+  }
+
+  // 2. Poll to a terminal status.
+  const deadline = Date.now() + WRAPPER_WAIT_MS;
+  let status = run.status ?? "READY";
+  let datasetId = run.defaultDatasetId;
+  while (!TERMINAL.has(status)) {
+    if (Date.now() >= deadline) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: `The ${actorLabel} run ${runId} was still ${status} after ${Math.round(WRAPPER_WAIT_MS / 1000)} seconds and this call stopped waiting. The run itself is still on Apify: read it at https://console.apify.com/actors/runs/${runId}` }],
+      };
+    }
+    await sleep(POLL_INTERVAL_MS);
+    let poll: Response;
+    try {
+      poll = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, { headers });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { isError: true, content: [{ type: "text", text: `Lost contact with the Apify API while waiting for ${actorLabel} run ${runId}: ${message}` }] };
+    }
+    if (!poll.ok) {
+      return { isError: true, content: [{ type: "text", text: await httpError(poll) }] };
+    }
+    const body = (await poll.json()) as { data?: { status?: string; defaultDatasetId?: string } };
+    status = body.data?.status ?? status;
+    datasetId = body.data?.defaultDatasetId ?? datasetId;
+  }
+
+  // 3. A run that did not succeed is a failure the caller must see, never an
+  // empty success.
+  if (status !== "SUCCEEDED") {
+    return {
+      isError: true,
+      content: [{ type: "text", text: `The ${actorLabel} run did not succeed (run ID: ${runId}, status: ${status}).` }],
+    };
+  }
+  if (!datasetId) {
+    return { isError: true, content: [{ type: "text", text: `The ${actorLabel} run ${runId} succeeded but reported no dataset, so there is nothing to return.` }] };
+  }
+
+  // 4. Read the dataset. Pass actor output through unchanged: the wrapper never
+  // reinterprets a status field.
+  let ds: Response;
+  try {
+    ds = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json`, { headers });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { isError: true, content: [{ type: "text", text: `Could not read the ${actorLabel} dataset: ${message}` }] };
+  }
+  if (!ds.ok) {
+    return { isError: true, content: [{ type: "text", text: await httpError(ds) }] };
+  }
+
+  let items: unknown;
+  try {
+    items = await ds.json();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { isError: true, content: [{ type: "text", text: `The ${actorLabel} run returned a response that could not be parsed: ${message}` }] };
+  }
+
+  if (!Array.isArray(items)) {
+    const asObj = items as { error?: { type?: string; message?: string } };
+    const detail = asObj?.error?.message ? `${asObj.error.message}` : JSON.stringify(items);
+    return { isError: true, content: [{ type: "text", text: `The ${actorLabel} run did not return a dataset. ${detail}` }] };
+  }
+
   return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
 }
 
@@ -138,18 +226,24 @@ server.registerTool(
       max_sending_domain_probes: z
         .number()
         .int()
+        .min(10)
+        .max(300)
         .optional()
-        .describe("Cap on how many candidate sending domains are probed per company. Lower it to bound run time and cost on companies with many lookalike domains."),
+        .describe("Cap on how many candidate sending domains are probed per company, 10 to 300, default 80. Lower it to bound run time and cost on companies with many lookalike domains."),
       request_timeout_ms: z
         .number()
         .int()
+        .min(3000)
+        .max(20000)
         .optional()
-        .describe("Per-HTTP-request timeout in milliseconds."),
+        .describe("Per HTTP request timeout in milliseconds, 3000 to 20000, default 9000."),
       dns_timeout_ms: z
         .number()
         .int()
+        .min(1000)
+        .max(15000)
         .optional()
-        .describe("Per-DNS-lookup timeout in milliseconds."),
+        .describe("Per DNS lookup timeout in milliseconds, 1000 to 15000, default 4000."),
     },
   },
   async ({ domain, domains, scan_sending_domains, sending_domain_depth, check_deliverability, skipCache, max_sending_domain_probes, request_timeout_ms, dns_timeout_ms }) => {
