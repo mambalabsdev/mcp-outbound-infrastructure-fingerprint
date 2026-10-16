@@ -23,6 +23,7 @@ Give it a company domain. It tells your agent whether that company runs cold ema
 | `max_sending_domain_probes` | integer | 10 to 300, default 80. Cap on candidate sending domains probed per company. |
 | `request_timeout_ms` | integer | 3000 to 20000, default 9000. Per HTTP request timeout. |
 | `dns_timeout_ms` | integer | 1000 to 15000, default 4000. Per DNS lookup timeout. |
+| `max_charge_usd` | number | Optional spending cap for this call, in USD. The actor stops before any charge that would take the run past this amount and keeps every row already charged. |
 
 Returns a flat row per domain: `runs_outbound` (`program`, `light`, `none`, `unknown`), `confidence`, `sending_domains[]`, `registration_clusters[]`, `sending_platforms[]`, `inbox_provider`, `warmup_detected`, `infrastructure_vendors[]`, `spf_status`, `dkim_status`, `dmarc_policy`, and an `evidence[]` array of quotable strings.
 
@@ -33,6 +34,17 @@ A real outbound program does not send from the domain the business runs on. It b
 Measured on nine live domains: 6 of 6 detected on companies that demonstrably run outbound, 0 false positives of 3 on controls.
 
 **Two honest limits.** When the brand token is an ordinary English word (Gong, Clay, Ramp), lookalike patterns collide with unrelated businesses that legitimately own them; the actor sets `brand_is_common_word` and caps confidence rather than reporting a confident `none`. And sending-platform recall is partial by design: Instantly, Smartlead, Lemlist, Apollo and Salesloft connect over OAuth to a customer's own mailbox and publish no SPF include host at all, so an empty `sending_platforms` tells you little while a populated one is solid.
+
+## Pricing
+
+You pay per event on Apify, billed to your own Apify account. Prices from the live pricing record, read 2026-10-16:
+
+| Event | Price per event (USD) | Fires when |
+| --- | --- | --- |
+| `actor-start` | $0.00005 | Charged once when the run starts. |
+| `domain-analyzed` | $0.004 on the Free plan, down to $0.0034 on higher Apify plans | Charged once per domain analyzed. Domains that return no outbound signals, or that do not resolve, still count as analyzed and are charged. |
+
+The [actor's Apify page](https://apify.com/mambalabs/outbound-infrastructure-fingerprint) carries the current prices. Running this server consumes Apify credits.
 
 ## Setup
 
