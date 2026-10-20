@@ -4,6 +4,8 @@
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
+<a href="https://mcprush.com/to/outbound-infrastructure-fingerprint-mcp?ref=badge"><img width="380" height="200" src="https://mcprush.com/badge/outbound-infrastructure-fingerprint-mcp/card.svg" alt="Outbound Infrastructure Fingerprint MCP server" /></a>
+
 MCP server for the Mamba Labs [Outbound Infrastructure Fingerprint](https://apify.com/mambalabs/outbound-infrastructure-fingerprint) actor on Apify.
 
 Give it a company domain. It tells your agent whether that company runs cold email outbound, and on what stack.
